@@ -35,6 +35,10 @@ def main() -> None:
         help="Max concurrent LLM requests (overrides config)",
     )
     parser.add_argument(
+        "--no-grouping", action="store_true", default=False,
+        help="Disable finding grouping (analyze each finding independently)",
+    )
+    parser.add_argument(
         "--verify", type=Path, default=None, metavar="FILE",
         help="Compare output against a ground-truth JSON (final_results.json) and write a CSV report",
     )
