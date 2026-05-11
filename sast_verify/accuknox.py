@@ -24,7 +24,7 @@ def _map_severity(raw: str | None) -> str:
     return _SEVERITY_MAP.get(raw.lower(), "low")
 
 
-def _build_params(fingerprint: str) -> dict:
+def _build_params(fingerprint: str, repo_id: str | None = None) -> dict:
     params: dict = {
         "page": 1,
         "page_size": 1,
@@ -35,9 +35,9 @@ def _build_params(fingerprint: str) -> dict:
         "ignored": "False",
         "misc__fingerprint": fingerprint,
     }
-    repo_id = os.environ.get("ACCUKNOX_REPO_ID", "")
-    if repo_id:
-        params["asset__resource_id"] = repo_id
+    resolved_repo_id = repo_id or os.environ.get("ACCUKNOX_REPO_ID", "")
+    if resolved_repo_id:
+        params["asset__resource_id"] = resolved_repo_id
     return params
 
 
@@ -62,12 +62,13 @@ async def lookup_existing_verdict_async(
     fingerprint: str,
     base_url: str,
     token: str,
+    repo_id: str | None = None,
 ) -> Verdict | None:
     """Async variant — reuses a shared AsyncClient for connection pooling."""
     try:
         resp = await client.get(
             f"{base_url}/api/v1/finding-dashboard",
-            params=_build_params(fingerprint),
+            params=_build_params(fingerprint, repo_id=repo_id),
             headers={"Authorization": f"Bearer {token}"},
             timeout=30,
         )
@@ -82,7 +83,7 @@ async def lookup_existing_verdict_async(
     return None
 
 
-def lookup_existing_verdict(fingerprint: str) -> Verdict | None:
+def lookup_existing_verdict(fingerprint: str, repo_id: str | None = None) -> Verdict | None:
     """Synchronous fallback — used when called outside an async context."""
     base_url = os.environ.get("ACCUKNOX_BASE_URL", "").rstrip("/")
     token = os.environ.get("ACCUKNOX_BEARER_TOKEN", "")
@@ -91,7 +92,7 @@ def lookup_existing_verdict(fingerprint: str) -> Verdict | None:
     try:
         resp = httpx.get(
             f"{base_url}/api/v1/finding-dashboard",
-            params=_build_params(fingerprint),
+            params=_build_params(fingerprint, repo_id=repo_id),
             headers={"Authorization": f"Bearer {token}"},
             timeout=30,
         )

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .agents.runner import analyze_all, analyze_all_grouped
 from .grouping import build_groups
-from .preprocess import preprocess
+from .preprocess import preprocess, preprocess_data
 from .retrieval import retrieve
 from .schema import Verdict
 
@@ -163,7 +163,12 @@ def run(
     from .schema import EvidenceBundle
     cfg = get_config()
 
-    findings = preprocess(findings_path)
+    raw_findings_json = json.loads(findings_path.read_text(encoding="utf-8"))
+    _repo_url = raw_findings_json.get("repo_url") or ""
+    _ref = raw_findings_json.get("ref") or ""
+    repo_id_from_file = f"{_repo_url}/{_ref}".strip("/") if _repo_url else ""
+
+    findings = preprocess_data(raw_findings_json)
     t0 = time.perf_counter()
     if cfg.findings_analysis:
         bundles = [EvidenceBundle(finding=f, evidence=[]) for f in findings]
@@ -213,10 +218,12 @@ def run(
     if to_analyze and base_url and token:
         import httpx
 
+        repo_id = repo_id_from_file or os.environ.get("ACCUKNOX_REPO_ID", "")
+
         async def _accuknox_batch(items):
             async with httpx.AsyncClient() as client:
                 results = await asyncio.gather(*(
-                    lookup_existing_verdict_async(client, b.finding.fingerprint, base_url, token)
+                    lookup_existing_verdict_async(client, b.finding.fingerprint, base_url, token, repo_id=repo_id)
                     for _, b in items
                 ))
             return results
