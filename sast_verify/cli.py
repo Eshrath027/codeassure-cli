@@ -47,6 +47,10 @@ def main() -> None:
         help="Anthropic API key for Claude verdict validation (overrides ANTHROPIC_API_KEY env var)",
     )
     parser.add_argument(
+        "--repo-id", type=str, default=None, metavar="ID",
+        help="Repository ID for AccuKnox finding lookup (overrides ACCUKNOX_REPO_ID env var)",
+    )
+    parser.add_argument(
         "--grouping", action="store_true", default=False,
         help="Enable finding grouping — analyze findings in groups (default behavior)",
     )
@@ -63,6 +67,8 @@ def main() -> None:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     if args.anthropic_key:
         os.environ["ANTHROPIC_API_KEY"] = args.anthropic_key
+    if args.repo_id:
+        os.environ["ACCUKNOX_REPO_ID"] = args.repo_id
 
     from .config import load_config
     from .pipeline import run, verify

@@ -82,6 +82,10 @@ class Config(BaseModel):
     max_tokens: int | None = Field(default=4096, description="Max completion tokens per LLM call. Set to null for uncapped.")
     finding_policy: FindingPolicy = Field(default_factory=FindingPolicy, description="Controls what counts as true_positive")
     validator: ValidatorConfig | None = Field(default=None, description="Optional second-opinion validator (e.g. Gemini via Vertex)")
+    findings_analysis: bool = Field(
+        default=False,
+        description="Set to true for finding_only mode: LLM sees only the scanner-captured snippet, no file reads or tools.",
+    )
     thinking_map: dict[str, ThinkingMode] | None = Field(
         # default_factory=lambda: dict(_DEFAULT_THINKING_MAP),
         default=None,

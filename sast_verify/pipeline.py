@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -158,16 +159,27 @@ def run(
 ) -> None:
     wall_start = time.perf_counter()
 
+    from .config import get_config
+    from .schema import EvidenceBundle
+    cfg = get_config()
+
     findings = preprocess(findings_path)
     t0 = time.perf_counter()
-    with ThreadPoolExecutor(max_workers=min(len(findings), concurrency * 2) if findings else 1) as pool:
-        bundles = list(pool.map(lambda f: retrieve(f, codebase), findings))
+    if cfg.findings_analysis:
+        bundles = [EvidenceBundle(finding=f, evidence=[]) for f in findings]
+    else:
+        with ThreadPoolExecutor(max_workers=min(len(findings), concurrency * 2) if findings else 1) as pool:
+            bundles = list(pool.map(lambda f: retrieve(f, codebase), findings))
     retrieval_elapsed = time.perf_counter() - t0
     print(f"[timing] retrieval: {retrieval_elapsed:.1f}s for {len(findings)} finding(s)", flush=True)
 
-    # Only anchored findings go to the agent; unanchored → deterministic uncertain
+    # finding_only mode: all bundles go to the agent regardless of evidence
+    # full/no_tools mode: only anchored findings go to the agent; unanchored → uncertain
     verdicts: list[Verdict] = [_no_anchor_verdict()] * len(bundles)
-    to_analyze = [(i, b) for i, b in enumerate(bundles) if b.evidence]
+    if cfg.findings_analysis:
+        to_analyze = list(enumerate(bundles))
+    else:
+        to_analyze = [(i, b) for i, b in enumerate(bundles) if b.evidence]
     if severities is not None:
         to_analyze = [
             (i, b) for i, b in to_analyze
@@ -193,6 +205,40 @@ def run(
             len(to_analyze) - len(remaining), len(to_analyze), len(remaining),
         )
         to_analyze = remaining
+
+    # Check AccuKnox for existing verdicts — skip LLM for already-known findings
+    from .accuknox import lookup_existing_verdict_async
+    base_url = os.environ.get("ACCUKNOX_BASE_URL", "").rstrip("/")
+    token = os.environ.get("ACCUKNOX_BEARER_TOKEN", "")
+    if to_analyze and base_url and token:
+        import httpx
+
+        async def _accuknox_batch(items):
+            async with httpx.AsyncClient() as client:
+                results = await asyncio.gather(*(
+                    lookup_existing_verdict_async(client, b.finding.fingerprint, base_url, token)
+                    for _, b in items
+                ))
+            return results
+
+        raw_results = asyncio.run(_accuknox_batch(to_analyze))
+
+        accuknox_resolved: list[tuple[int, object]] = []
+        still_pending: list[tuple[int, object]] = []
+        for (i, b), existing in zip(to_analyze, raw_results):
+            if existing is not None:
+                verdicts[i] = existing
+                accuknox_resolved.append((i, b))
+            else:
+                still_pending.append((i, b))
+
+        if accuknox_resolved:
+            print(
+                f"[accuknox] {len(accuknox_resolved)} finding(s) resolved from AccuKnox database; "
+                f"{len(still_pending)} sent to AI",
+                flush=True,
+            )
+        to_analyze = still_pending
 
     ai_elapsed = 0.0
     if to_analyze:

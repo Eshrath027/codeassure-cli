@@ -5,9 +5,11 @@ from pydantic_ai import Agent, PromptedOutput
 from ..config import get_config
 from ..prompts.analyzer import (
     ANALYZER_INSTRUCTION,
+    ANALYZER_INSTRUCTION_FINDING_ONLY,
     ANALYZER_INSTRUCTION_NO_TOOLS,
     EVALUATOR_INSTRUCTION,
     GROUP_ANALYZER_INSTRUCTION,
+    GROUP_ANALYZER_INSTRUCTION_FINDING_ONLY,
     GROUP_ANALYZER_INSTRUCTION_NO_TOOLS,
     GROUP_EVALUATOR_INSTRUCTION,
     GROUP_VERDICT_FORMATTER_INSTRUCTION,
@@ -24,6 +26,14 @@ _OUTPUT_RETRIES = 3
 
 def build_analyzer() -> Agent[AnalyzerDeps, Verdict]:
     cfg = get_config()
+    if cfg.findings_analysis:
+        return Agent(
+            cfg.build_model(),
+            deps_type=AnalyzerDeps,
+            output_type=PromptedOutput(Verdict),
+            instructions=ANALYZER_INSTRUCTION_FINDING_ONLY,
+            output_retries=_OUTPUT_RETRIES,
+        )
     if cfg.model.tool_calling:
         return Agent(
             cfg.build_model(),
@@ -52,6 +62,14 @@ def build_verdict_formatter() -> Agent[None, str]:
 
 def build_group_analyzer() -> Agent[AnalyzerDeps, GroupVerdicts]:
     cfg = get_config()
+    if cfg.findings_analysis:
+        return Agent(
+            cfg.build_model(),
+            deps_type=AnalyzerDeps,
+            output_type=PromptedOutput(GroupVerdicts),
+            instructions=GROUP_ANALYZER_INSTRUCTION_FINDING_ONLY,
+            output_retries=_OUTPUT_RETRIES,
+        )
     if cfg.model.tool_calling:
         return Agent(
             cfg.build_model(),

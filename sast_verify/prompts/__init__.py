@@ -47,10 +47,17 @@ def build_user_message(bundle: EvidenceBundle) -> str:
     f = bundle.finding
 
     # Code evidence first — model forms its own impression before seeing the claim
-    parts = ["## Source Code"]
-    for ev in bundle.evidence:
-        parts.append(f"### {ev.path} (lines {ev.start_line}–{ev.end_line})")
-        parts.append(f"```\n{ev.content}\n```")
+    parts = []
+    if bundle.evidence:
+        parts.append("## Source Code")
+        for ev in bundle.evidence:
+            parts.append(f"### {ev.path} (lines {ev.start_line}–{ev.end_line})")
+            parts.append(f"```\n{ev.content}\n```")
+    else:
+        # finding_only mode: only the scanner-captured snippet is available
+        parts.append("## Flagged Code Snippet")
+        parts.append(f"### {f.path} (lines {f.line}–{f.end_line})")
+        parts.append(f"```\n{f.lines}\n```")
 
     # Scanner claim second — model evaluates it against the code
     parts.append("\n## Scanner Claim")
@@ -131,10 +138,18 @@ def build_group_message(group: "FindingGroup") -> str:
     parts = []
 
     # Shared code evidence (deduplicated — shown once)
-    parts.append("## Source Code")
-    for ev in group.shared_evidence:
-        parts.append(f"### {ev.path} (lines {ev.start_line}–{ev.end_line})")
-        parts.append(f"```\n{ev.content}\n```")
+    if group.shared_evidence:
+        parts.append("## Source Code")
+        for ev in group.shared_evidence:
+            parts.append(f"### {ev.path} (lines {ev.start_line}–{ev.end_line})")
+            parts.append(f"```\n{ev.content}\n```")
+    else:
+        # finding_only mode: show each finding's scanner-captured snippet individually
+        parts.append("## Flagged Code Snippets")
+        for i, bundle in enumerate(group.bundles):
+            f = bundle.finding
+            parts.append(f"### Finding {i}: {f.path} (lines {f.line}–{f.end_line})")
+            parts.append(f"```\n{f.lines}\n```")
 
     # Coherence note
     if group.coherence_note:
