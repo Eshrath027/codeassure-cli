@@ -2,7 +2,7 @@
  "model": {
     "provider": "openai",
     "name": "gemma-4-31B-it-NVFP4",
-    "api_base": "http://100.92.159.5:47821/v1"
+    "api_base": "http://localhost:47821/v1"
   },
   "concurrency": 48,
   "stage_timeout": 600,
